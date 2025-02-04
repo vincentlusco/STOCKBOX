@@ -1,25 +1,38 @@
-import logo from './logo.svg';
-import './App.css';
+import React from 'react';
+import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
+import { ThemeProvider, createTheme } from '@mui/material';
+import Layout from './components/Layout';
+import QuotePage from './pages/QuotePage';
+import WatchlistPage from './pages/WatchlistPage';
+import TestPage from './pages/TestPage';
+import WarrenPage from './pages/WarrenPage';
+
+// Create a dark theme
+const darkTheme = createTheme({
+    palette: {
+        mode: 'dark',
+        primary: {
+            main: '#90caf9'
+        }
+    }
+});
 
 function App() {
-  return (
-    <div className="App">
-      <header className="App-header">
-        <img src={logo} className="App-logo" alt="logo" />
-        <p>
-          Edit <code>src/App.js</code> and save to reload.
-        </p>
-        <a
-          className="App-link"
-          href="https://reactjs.org"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          Learn React
-        </a>
-      </header>
-    </div>
-  );
+    return (
+        <ThemeProvider theme={darkTheme}>
+            <BrowserRouter>
+                <Layout>
+                    <Routes>
+                        <Route path="/" element={<Navigate to="/quote" replace />} />
+                        <Route path="/quote" element={<QuotePage />} />
+                        <Route path="/watchlist" element={<WatchlistPage />} />
+                        <Route path="/test" element={<TestPage />} />
+                        <Route path="/warren" element={<WarrenPage />} />
+                    </Routes>
+                </Layout>
+            </BrowserRouter>
+        </ThemeProvider>
+    );
 }
 
 export default App;
