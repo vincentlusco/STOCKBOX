@@ -1,6 +1,8 @@
 {
-  "name": "stockbox",
-  "version": "1.0.0",
+  "name": "stockbox-terminal",
+  "version": "0.1.0",
+  "private": true,
+  "proxy": "http://localhost:5000",
   "description": "Professional financial securities terminal",
   "main": "server/start.js",
   "scripts": {
@@ -10,19 +12,24 @@
     "all": "concurrently \"npm run dev\" \"npm run client\""
   },
   "dependencies": {
+    "@mui/icons-material": "^5.11.16",
     "boxen": "^5.1.2",
     "chalk": "^4.1.2",
     "clear": "^0.1.0",
     "cors": "^2.8.5",
     "express": "^4.17.1",
     "figlet": "^1.5.2",
-    "localtunnel": "^2.0.2",
     "mongoose": "^6.0.0",
     "ngrok": "^4.3.3",
     "node-fetch": "^2.6.7",
     "ora": "^5.4.1",
     "portfinder": "^1.0.32",
-    "yahoo-finance2": "^2.3.0"
+    "ws": "^8.16.0",
+    "finnhub": "^1.2.18",
+    "sec-api": "^2.0.1",
+    "newsapi": "^2.4.1",
+    "technicalindicators": "^3.1.0",
+    "yahoo-finance2": "^2.13.3"
   },
   "devDependencies": {
     "concurrently": "^6.2.0",
