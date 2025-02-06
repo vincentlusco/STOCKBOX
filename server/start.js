@@ -18,7 +18,7 @@ const testRoutes = require('./routes/test');
 mongoose.set('strictQuery', false);
 
 const app = express();
-const PORT = process.env.PORT || 5000;
+const PORT = process.env.PORT || 2008;
 
 // Status tracking
 let serverStatus = {

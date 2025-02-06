@@ -1,5 +1,4 @@
 import React from 'react';
-import { Paper, Typography, Button } from '@mui/material';
 
 class ErrorBoundary extends React.Component {
     constructor(props) {
@@ -18,19 +17,28 @@ class ErrorBoundary extends React.Component {
     render() {
         if (this.state.hasError) {
             return (
-                <Paper sx={{ p: 3, m: 2, bgcolor: 'error.dark', color: 'white' }}>
-                    <Typography variant="h6">Something went wrong</Typography>
-                    <Typography variant="body2" sx={{ mb: 2 }}>
-                        {this.state.error?.message || 'Unknown error occurred'}
-                    </Typography>
-                    <Button 
-                        variant="contained" 
-                        onClick={() => window.location.reload()}
-                        color="inherit"
+                <div style={{ 
+                    color: '#00ff00',
+                    backgroundColor: '#1e1e1e',
+                    padding: '20px',
+                    fontFamily: 'monospace'
+                }}>
+                    <h3>Component Error</h3>
+                    <pre>{this.state.error?.message}</pre>
+                    <button 
+                        onClick={() => this.setState({ hasError: false, error: null })}
+                        style={{
+                            backgroundColor: 'transparent',
+                            border: '1px solid #00ff00',
+                            color: '#00ff00',
+                            padding: '8px 16px',
+                            cursor: 'pointer',
+                            marginTop: '10px'
+                        }}
                     >
-                        Reload Page
-                    </Button>
-                </Paper>
+                        Try Again
+                    </button>
+                </div>
             );
         }
 

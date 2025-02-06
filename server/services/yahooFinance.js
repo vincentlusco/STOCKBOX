@@ -5,11 +5,16 @@ const SECURITY_TYPES = require('../constants/securityTypes');
 
 class YahooFinanceService {
   constructor() {
-    // Configure Yahoo Finance with correct options
+    // Add validation options
     yahooFinance.setGlobalConfig({
+      validation: {
+        logErrors: false,
+        logOptionsErrors: false,
+        strict: false
+      },
       queue: {
         concurrency: 1,
-        timeout: 10000
+        timeout: 30000
       }
     });
 
@@ -48,107 +53,162 @@ class YahooFinanceService {
       'VIX': '/VX',    // VIX futures (CBOE symbol)
       'VX': '/VX'      // VIX futures alternate symbol
     };
+
+    // Add descriptions for futures contracts
+    this.futuresDescriptions = {
+      'ZB': '30-Year U.S. Treasury Bond',
+      'ZN': '10-Year U.S. Treasury Note',
+      'ZF': '5-Year U.S. Treasury Note', 
+      'ZT': '2-Year U.S. Treasury Note',
+      'ES': 'S&P 500 E-mini',
+      'NQ': 'Nasdaq 100 E-mini',
+      'RTY': 'Russell 2000 E-mini',
+      'YM': 'Dow Jones E-mini',
+      'CL': 'Crude Oil WTI',
+      'GC': 'Gold',
+      'SI': 'Silver',
+      'HG': 'Copper',
+      'NG': 'Natural Gas',
+      '6E': 'Euro FX',
+      '6J': 'Japanese Yen',
+      '6B': 'British Pound',
+      '6C': 'Canadian Dollar',
+      'ZC': 'Corn',
+      'ZS': 'Soybeans',
+      'ZW': 'Wheat',
+      'KC': 'Coffee',
+      'CT': 'Cotton'
+    };
+
+    this.requestQueue = [];
+    this.isProcessing = false;
+    this.rateLimit = 2000; // 2 seconds between requests
+  }
+
+  async queueRequest(fn) {
+    return new Promise((resolve, reject) => {
+      this.requestQueue.push({ fn, resolve, reject });
+      if (!this.isProcessing) {
+        this.processQueue();
+      }
+    });
+  }
+
+  async processQueue() {
+    if (this.requestQueue.length === 0) {
+      this.isProcessing = false;
+      return;
+    }
+
+    this.isProcessing = true;
+    const { fn, resolve, reject } = this.requestQueue.shift();
+
+    try {
+      const result = await fn();
+      resolve(result);
+    } catch (error) {
+      reject(error);
+    }
+
+    setTimeout(() => this.processQueue(), this.rateLimit);
   }
 
   getYahooSymbol(symbol, type) {
     switch (type) {
-      case 'FOREX':
-        return `${symbol}=X`;
-      case 'CRYPTO':
-        return `${symbol}-USD`;
-      case 'INDEX':
-        return `^${symbol}`;
       case 'FUTURES':
-        return this.futuresMap[symbol] || symbol;
+        return symbol.includes('=F') ? symbol : `${symbol}=F`;
+      case 'CRYPTO':
+        if (!symbol.includes('-USD')) {
+          return `${symbol}-USD`;
+        }
+        return symbol;
+      case 'FOREX':
+        return symbol.includes('=X') ? symbol : `${symbol}=X`;
       default:
         return symbol;
     }
   }
 
-  async getQuote(symbol, type) {
-    try {
-      // Handle futures symbols
-      if (type === 'FUTURES') {
-        const futuresSymbol = this.futuresMap[symbol] || symbol;
-        symbol = futuresSymbol;
-      }
-
-      console.log(`Getting quote for ${symbol} (${type})`);
-      const yahooSymbol = this.getYahooSymbol(symbol, type);
-      
+  async fetchWithRetry(fn, maxRetries = 3) {
+    for (let i = 0; i < maxRetries; i++) {
       try {
-        const quote = await yahooFinance.quote(yahooSymbol);
-        if (!quote) {
-          throw new Error(`No quote data available for ${symbol}`);
-        }
-
-        // Format quote data consistently
-        return {
-          symbol: quote.symbol,
-          name: quote.shortName || quote.longName || `${symbol} Futures`,
-          price: {
-            current: quote.regularMarketPrice || null,
-            change: quote.regularMarketChange || null,
-            changePercent: quote.regularMarketChangePercent || null,
-            open: quote.regularMarketOpen || null,
-            high: quote.regularMarketDayHigh || null,
-            low: quote.regularMarketDayLow || null,
-            previousClose: quote.regularMarketPreviousClose || null,
-            volume: quote.regularMarketVolume || null
-          },
-          trading: {
-            bid: quote.bid || null,
-            ask: quote.ask || null,
-            bidSize: quote.bidSize || null,
-            askSize: quote.askSize || null
-          },
-          market: {
-            cap: quote.marketCap || null,
-            pe: quote.forwardPE || null,
-            eps: quote.epsForward || null,
-            beta: quote.beta || null,
-            dividendYield: quote.dividendYield || null
-          },
-          ranges: {
-            dayRange: quote.regularMarketDayRange || `${quote.regularMarketDayLow}-${quote.regularMarketDayHigh}`,
-            fiftyTwoWeekRange: quote.fiftyTwoWeekRange || `${quote.fiftyTwoWeekLow}-${quote.fiftyTwoWeekHigh}`,
-            fiftyDayAvg: quote.fiftyDayAverage || null,
-            twoHundredDayAvg: quote.twoHundredDayAverage || null
-          }
-        };
+        return await fn();
       } catch (error) {
-        if (error.message.includes('validation')) {
-          console.warn(`[Quote] Validation error for ${symbol}, attempting fallback...`);
-          // Return minimal quote data with null values
-          return {
-            symbol: symbol,
-            name: `${symbol} Futures`,
-            price: {
-              current: null,
-              change: null,
-              changePercent: null,
-              open: null,
-              high: null,
-              low: null,
-              previousClose: null,
-              volume: null
-            },
-            trading: {
-              bid: null,
-              ask: null,
-              bidSize: null,
-              askSize: null
-            },
-            market: {},
-            ranges: {}
-          };
+        if (error.response?.status === 429) {
+          // Exponential backoff
+          const delay = Math.pow(2, i) * 1000;
+          await new Promise(resolve => setTimeout(resolve, delay));
+          continue;
         }
         throw error;
       }
-    } catch (error) {
-      console.error('Quote error:', error);
-      throw new Error(`Failed to get quote for ${symbol}: ${error.message}`);
     }
+  }
+
+  async getQuote(symbol, type) {
+    return this.fetchWithRetry(async () => {
+      const yahooSymbol = this.getYahooSymbol(symbol, type);
+      try {
+        const modules = ['price', 'summaryDetail'];
+        if (type === 'ETF') {
+          modules.push('defaultKeyStatistics', 'fundProfile');
+        }
+        
+        const data = await yahooFinance.quoteSummary(yahooSymbol, {
+          modules: modules
+        });
+
+        // Extract data from the correct property
+        const price = data.price || {};
+        const summaryDetail = data.summaryDetail || {};
+        const defaultKeyStatistics = data.defaultKeyStatistics || {};
+        const fundProfile = data.fundProfile || {};
+
+        // Format the quoteSummary response into our quote format
+        const quote = {
+          symbol: yahooSymbol,
+          price: {
+            current: price.regularMarketPrice,
+            change: price.regularMarketChange,
+            changePercent: price.regularMarketChangePercent,
+            open: price.regularMarketOpen,
+            high: price.regularMarketDayHigh,
+            low: price.regularMarketDayLow,
+            previousClose: price.regularMarketPreviousClose,
+            volume: price.regularMarketVolume
+          },
+          trading: {
+            bid: summaryDetail.bid,
+            ask: summaryDetail.ask,
+            bidSize: summaryDetail.bidSize,
+            askSize: summaryDetail.askSize
+          },
+          market: {
+            cap: price.marketCap,
+            avgVolume: summaryDetail.averageVolume
+          }
+        };
+
+        // Add ETF-specific data
+        if (type === 'ETF') {
+          quote.etf = {
+            expenseRatio: defaultKeyStatistics.expenseRatio,
+            ytdReturn: defaultKeyStatistics.ytdReturn,
+            yield: summaryDetail.yield,
+            beta: defaultKeyStatistics.beta,
+            totalAssets: summaryDetail.totalAssets,
+            category: fundProfile.category
+          };
+        }
+
+        console.log('[Quote] Formatted data:', quote);
+        return quote;
+      } catch (error) {
+        console.error(`Quote error:`, error);
+        console.error(`Raw data:`, error.result);
+        throw error;
+      }
+    });
   }
 
   async getFinancialAnalysis(symbol, type) {
@@ -571,5 +631,24 @@ class YahooFinanceService {
     return 'Neutral';
   }
 }
+
+// Add retry logic for news fetching
+const fetchWithRetry = async (url, options, maxRetries = 3, delay = 1000) => {
+  for (let i = 0; i < maxRetries; i++) {
+    try {
+      const response = await fetch(url, options);
+      if (response.ok) return response.json();
+      if (response.status === 429) {
+        // Rate limited - wait and retry
+        await new Promise(resolve => setTimeout(resolve, delay * Math.pow(2, i)));
+        continue;
+      }
+      throw new Error(`HTTP error! status: ${response.status}`);
+    } catch (error) {
+      if (i === maxRetries - 1) throw error;
+      await new Promise(resolve => setTimeout(resolve, delay * Math.pow(2, i)));
+    }
+  }
+};
 
 module.exports = new YahooFinanceService(); 

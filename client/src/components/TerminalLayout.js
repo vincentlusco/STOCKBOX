@@ -2,15 +2,18 @@ import React from 'react';
 import { styled } from '@mui/material/styles';
 import TerminalCommand from './TerminalCommand';
 import TradingViewWidget from './TradingViewWidget';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useLocation } from 'react-router-dom';
+import ErrorBoundary from './ErrorBoundary';
+import PropTypes from 'prop-types';
+import { useTerminal } from '../context/TerminalContext';
+import { Box, AppBar, Toolbar, Button, Typography } from '@mui/material';
 
 const TerminalContainer = styled('div')({
   display: 'flex',
   flexDirection: 'column',
   height: '100vh',
-  backgroundColor: 'var(--terminal-black)',
-  color: 'var(--terminal-green)',
-  fontFamily: 'Courier New, monospace'
+  backgroundColor: 'var(--terminal-dim)',
+  color: 'var(--terminal-text)'
 });
 
 const MainContent = styled('div')({
@@ -56,7 +59,8 @@ const SearchInput = styled('input')({
 
 const ChartSection = styled('div')({
   flex: 1,
-  borderBottom: '1px solid var(--terminal-green)'
+  minHeight: 0,
+  backgroundColor: 'var(--terminal-black)'
 });
 
 const TimeframeBar = styled('div')({
@@ -84,8 +88,10 @@ const DataSection = styled('div')({
 });
 
 const CommandSection = styled('div')({
+  flex: '0 0 300px',
   borderTop: '1px solid var(--terminal-green)',
-  padding: '10px'
+  padding: '10px',
+  backgroundColor: 'var(--terminal-black)'
 });
 
 const NavButtons = styled('div')({
@@ -93,7 +99,7 @@ const NavButtons = styled('div')({
   gap: '10px'
 });
 
-const Button = styled('button')({
+const ButtonStyled = styled('button')({
   backgroundColor: 'transparent',
   border: '1px solid var(--terminal-green)',
   color: 'var(--terminal-green)',
@@ -105,91 +111,39 @@ const Button = styled('button')({
   }
 });
 
-const TerminalLayout = ({ children, currentSymbol, onSymbolChange, data }) => {
-  const [securityType, setSecurityType] = React.useState('STOCK');
-  const [timeframe, setTimeframe] = React.useState('1D');
-  const navigate = useNavigate();
-
-  const handleSymbolSearch = (e) => {
-    if (e.key === 'Enter') {
-      const input = e.target.value.toUpperCase();
-      // Parse input for security type
-      if (input.includes(':')) {
-        const [type, sym] = input.split(':');
-        setSecurityType(type);
-        onSymbolChange(sym, type);
-      } else {
-        onSymbolChange(input, 'STOCK');
-      }
-    }
-  };
-
-  const handleQuote = () => {
-    navigate(`/quote?symbol=${currentSymbol}`);
-  };
-
-  const handleAddToWatchlist = () => {
-    // Add to watchlist logic here
-    console.log('Adding to watchlist:', currentSymbol);
-  };
+const TerminalLayout = ({ onSymbolChange }) => {
+  const { currentSymbol, securityType, data, isLoading, error } = useTerminal();
 
   return (
-    <TerminalContainer>
-      <TopBar>
-        <div style={{ display: 'flex', alignItems: 'center', gap: '20px' }}>
-          <Logo>STOCKBOX TERMINAL</Logo>
-          <NavButtons>
-            <Button onClick={() => navigate('/quote')}>QUOTE</Button>
-            <Button onClick={() => navigate('/watchlist')}>WATCHLIST</Button>
-            <Button onClick={() => navigate('/test')}>TEST</Button>
-            <Button onClick={() => navigate('/warren')}>WARREN</Button>
-            <Button onClick={() => navigate('/help')}>HELP</Button>
-          </NavButtons>
-        </div>
-        <div style={{ display: 'flex', gap: '10px' }}>
-          <SearchInput
-            placeholder="Enter symbol or TYPE:SYMBOL..."
-            onKeyPress={handleSymbolSearch}
+    <ErrorBoundary>
+      <Box sx={{ display: 'flex', flexDirection: 'column', height: '100vh' }}>
+        <AppBar position="static">
+          <Toolbar>
+            <Logo>Terminal</Logo>
+            <SearchInput />
+          </Toolbar>
+        </AppBar>
+        <Box sx={{ flex: 1, display: 'flex', flexDirection: 'column' }}>
+          <TerminalCommand
+            onSymbolChange={onSymbolChange}
+            currentSymbol={currentSymbol}
+            securityType={securityType}
+            data={data}
+            isLoading={isLoading}
+            error={error}
           />
-          <Button onClick={handleQuote}>GET QUOTE</Button>
-          <Button onClick={handleAddToWatchlist}>+ WATCHLIST</Button>
-        </div>
-      </TopBar>
-
-      <MainContent>
-        <ChartContainer>
-          <ChartSection>
-            <TradingViewWidget symbol={currentSymbol} />
-          </ChartSection>
-          <TimeframeBar>
-            <button className={timeframe === '1m' ? 'active' : ''} onClick={() => setTimeframe('1m')}>1m</button>
-            <button className={timeframe === '5m' ? 'active' : ''} onClick={() => setTimeframe('5m')}>5m</button>
-            <button className={timeframe === '15m' ? 'active' : ''} onClick={() => setTimeframe('15m')}>15m</button>
-            <button className={timeframe === '30m' ? 'active' : ''} onClick={() => setTimeframe('30m')}>30m</button>
-            <button className={timeframe === '1h' ? 'active' : ''} onClick={() => setTimeframe('1h')}>1h</button>
-            <button className={timeframe === '1D' ? 'active' : ''} onClick={() => setTimeframe('1D')}>1D</button>
-            <button className={timeframe === '1W' ? 'active' : ''} onClick={() => setTimeframe('1W')}>1W</button>
-            <button className={timeframe === '1M' ? 'active' : ''} onClick={() => setTimeframe('1M')}>1M</button>
-          </TimeframeBar>
-        </ChartContainer>
-        <DataSection>
-          {children}
-        </DataSection>
-      </MainContent>
-
-      <CommandSection>
-        <TerminalCommand 
-          onCommand={(cmd, args) => {
-            if (cmd === 'symbol' || cmd === 's') {
-              onSymbolChange(args[0].toUpperCase());
-            }
-          }}
-          data={data}
-          currentSymbol={currentSymbol}
-        />
-      </CommandSection>
-    </TerminalContainer>
+        </Box>
+      </Box>
+    </ErrorBoundary>
   );
+};
+
+TerminalLayout.propTypes = {
+  onSymbolChange: PropTypes.func
+};
+
+TerminalLayout.defaultProps = {
+  onSymbolChange: () => {} // Provide default no-op function
 };
 
 export default TerminalLayout; 
